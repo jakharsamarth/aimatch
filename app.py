@@ -1,44 +1,51 @@
-import pandas as pd
-import xgboost as xgb
 import streamlit as st
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 
-# Load dataset and train model
+# Load and prepare data
 df = pd.read_csv("data_bodmas.csv")
 
 categorical_cols = ['Donor_BloodType', 'Recipient_BloodType', 'Donor_Rh', 'Recipient_Rh', 'Organ_Type']
 label_encoders = {}
 
+# Encode categorical columns
 for col in categorical_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col])
     label_encoders[col] = le
 
+# Train Random Forest model
 X = df.drop(columns=['Donor_ID', 'Recipient_ID', 'Is_Match'])
 y = df['Is_Match']
-model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X, y)
 
 # Streamlit UI
-st.title("Organ Match Prediction")
+st.title("🫀 Organ Match Prediction")
 
-donor_blood = st.selectbox("Donor Blood Type", label_encoders['Donor_BloodType'].classes_)
-recipient_blood = st.selectbox("Recipient Blood Type", label_encoders['Recipient_BloodType'].classes_)
-donor_rh = st.selectbox("Donor Rh", label_encoders['Donor_Rh'].classes_)
-recipient_rh = st.selectbox("Recipient Rh", label_encoders['Recipient_Rh'].classes_)
-organ_type = st.selectbox("Organ Type", label_encoders['Organ_Type'].classes_)
+with st.form("input_form"):
+    donor_blood_type = st.selectbox("Donor Blood Type", ["A", "B", "AB", "O"])
+    recipient_blood_type = st.selectbox("Recipient Blood Type", ["A", "B", "AB", "O"])
+    donor_rh = st.selectbox("Donor Rh", ["+", "-"])
+    recipient_rh = st.selectbox("Recipient Rh", ["+", "-"])
+    organ_type = st.selectbox("Organ Type", ["Kidney", "Heart", "Liver", "Lung", "Pancreas"])
 
-donor_age = st.number_input("Donor Age", min_value=0, max_value=120)
-recipient_age = st.number_input("Recipient Age", min_value=0, max_value=120)
-donor_lat = st.number_input("Donor Latitude")
-donor_lon = st.number_input("Donor Longitude")
-recipient_lat = st.number_input("Recipient Latitude")
-recipient_lon = st.number_input("Recipient Longitude")
+    donor_age = st.number_input("Donor Age", min_value=0, max_value=120, value=30)
+    recipient_age = st.number_input("Recipient Age", min_value=0, max_value=120, value=40)
 
-if st.button("Predict Match"):
-    input_data = {
-        "Donor_BloodType": donor_blood,
-        "Recipient_BloodType": recipient_blood,
+    donor_lat = st.number_input("Donor Latitude", value=25.5)
+    donor_lon = st.number_input("Donor Longitude", value=80.1)
+    recipient_lat = st.number_input("Recipient Latitude", value=25.6)
+    recipient_lon = st.number_input("Recipient Longitude", value=80.0)
+
+    submit = st.form_submit_button("Predict Match")
+
+if submit:
+    # Prepare input for prediction
+    new_data = {
+        "Donor_BloodType": donor_blood_type,
+        "Recipient_BloodType": recipient_blood_type,
         "Donor_Rh": donor_rh,
         "Recipient_Rh": recipient_rh,
         "Organ_Type": organ_type,
@@ -50,12 +57,14 @@ if st.button("Predict Match"):
         "Recipient_Lon": recipient_lon
     }
 
+    input_df = pd.DataFrame([new_data])
+
     # Encode input
     for col in categorical_cols:
         le = label_encoders[col]
-        input_data[col] = le.transform([input_data[col]])[0]
+        input_df[col] = le.transform([input_df[col][0]])
 
-    input_df = pd.DataFrame([input_data])
     prediction = model.predict(input_df)[0]
     result = "✅ Match" if prediction == 1 else "❌ No Match"
-    st.subheader(f"Prediction Result: {result}")
+
+    st.success(f"Prediction Result: {result}")
